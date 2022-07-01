@@ -1,7 +1,3 @@
-/*
-Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-
-*/
 package cmd
 
 import (
@@ -31,9 +27,13 @@ to quickly create a Cobra application.`,
 			log.SetLevel(log.DebugLevel)
 		}
 
-		selectedEnv := args[0]
+		var selectedEnv string
 
-		log.Debug(fmt.Sprintf("Using env %s", selectedEnv))
+		if len(args) > 0 {
+			selectedEnv = args[0]
+		} else {
+			selectedEnv = "default"
+		}
 
 		bytes, err := jorge.UseConfigFile(".env", selectedEnv, newEnv)
 
@@ -45,7 +45,7 @@ to quickly create a Cobra application.`,
 		} else if bytes == 0 {
 			fmt.Println("Target file is empty. Nothing to do")
 		} else if bytes > 0 {
-			fmt.Println("Using the targe env")
+			fmt.Println(fmt.Sprintf("Using environment %s", selectedEnv))
 		} else {
 			fmt.Println("What the actual fuck?")
 		}
@@ -54,14 +54,5 @@ to quickly create a Cobra application.`,
 
 func init() {
 	rootCmd.AddCommand(useCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// useCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
 	useCmd.Flags().BoolP("new", "n", false, "Create a new environment")
 }

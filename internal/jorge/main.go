@@ -67,7 +67,7 @@ func getEnvsDirPath() (string, error) {
 	return envsDirPath, nil
 }
 
-func getConfig() (JorgeConfig, error) {
+func getInternalConfig() (JorgeConfig, error) {
 	jorgeDir, err := getJorgeDir()
 	if err != nil {
 		return JorgeConfig{}, err
@@ -112,7 +112,7 @@ func setInternalConfig(configUpdates JorgeConfig) (JorgeConfig, error) {
 	}
 
 	configFilePath := filepath.Join(jorgeDir, configFileName)
-	currentConfig, err := getConfig()
+	currentConfig, err := getInternalConfig()
 
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -332,7 +332,6 @@ func UseConfigFile(target string, envName string, createEnv bool) (int64, error)
 		if _, err := setInternalConfig(newConfig); err != nil {
 			return -2, err
 		} else {
-			fmt.Println(fmt.Sprintf("Using environment %s", envName))
 			return 1, nil
 		}
 	}
@@ -356,7 +355,7 @@ func ListEnvironments() error {
 		return err
 	}
 
-	config, err := getConfig()
+	config, err := getInternalConfig()
 	if err != nil {
 		return err
 	}
@@ -411,4 +410,20 @@ func Init() error {
 		return err
 	}
 	return nil
+}
+
+func CommitCurrentEnv() error {
+	config, err := getInternalConfig()
+
+	if err != nil {
+		return err
+	}
+
+	_, storeConfigErr := StoreConfigFile(config.ConfigFilePath, config.CurrentEnv)
+
+	if storeConfigErr != nil {
+		return storeConfigErr
+	} else {
+		return nil
+	}
 }

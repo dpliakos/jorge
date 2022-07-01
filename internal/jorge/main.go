@@ -427,3 +427,19 @@ func CommitCurrentEnv() error {
 		return nil
 	}
 }
+
+func RestoreEnv() error {
+	config, err := getInternalConfig()
+
+	if err != nil {
+		return err
+	}
+
+	_, restoreError := setConfigAsMain(config.ConfigFilePath, config.CurrentEnv)
+
+	if restoreError != nil {
+		return restoreError
+	} else {
+		return nil
+	}
+}

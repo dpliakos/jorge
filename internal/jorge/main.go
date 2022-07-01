@@ -418,7 +418,11 @@ func Init() error {
 		return err
 	}
 
-	jorgeutils.AppendToFile(".gitignore", ".jorge")
+	jorgeRecordExist, err := jorgeutils.ExistsInFile(".gitignore", ".jorge")
+
+	if !jorgeRecordExist {
+		jorgeutils.AppendToFile(".gitignore", ".jorge")
+	}
 
 	return nil
 }

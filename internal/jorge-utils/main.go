@@ -15,7 +15,7 @@ func Contains(elems []string, v string) bool {
 	return false
 }
 
-func existsInFile(filePath string, element string) (bool, error) {
+func ExistsInFile(filePath string, element string) (bool, error) {
 	readFile, err := os.Open(filePath)
 	if err != nil {
 		return false, err

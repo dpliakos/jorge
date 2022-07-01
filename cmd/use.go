@@ -35,7 +35,7 @@ to quickly create a Cobra application.`,
 			selectedEnv = "default"
 		}
 
-		bytes, err := jorge.UseConfigFile(".env", selectedEnv, newEnv)
+		bytes, err := jorge.UseConfigFile(selectedEnv, newEnv)
 
 		if err != nil {
 			panic(err)

@@ -217,8 +217,8 @@ func setConfigAsMain(target string, envName string) (int64, error) {
 
 	_, fileName := filepath.Split(target)
 
-	destination, err := os.Create(filepath.Join(fileName))
-	log.Debug(fmt.Sprintf("Target file path %v", fileName))
+	destination, err := os.Create(filepath.Join(target))
+	log.Debug(fmt.Sprintf("Target file path %v", target))
 	if err != nil {
 		return -9, err
 	}
@@ -302,7 +302,15 @@ func StoreConfigFile(path string, envName string) (int64, error) {
 	return nBytes, err
 }
 
-func UseConfigFile(target string, envName string, createEnv bool) (int64, error) {
+func UseConfigFile(envName string, createEnv bool) (int64, error) {
+
+	config, err := getInternalConfig()
+
+	if err != nil {
+		return -1, err
+	}
+
+	target := config.ConfigFilePath
 
 	if createEnv {
 		if existingEnvs, err := getEnvs(); err == nil {
@@ -409,6 +417,9 @@ func Init() error {
 	if storeFileErr != nil {
 		return err
 	}
+
+	jorgeutils.AppendToFile(".gitignore", ".jorge")
+
 	return nil
 }
 

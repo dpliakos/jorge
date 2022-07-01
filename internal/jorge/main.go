@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	jorgeutils "github.com/dpliakos/jorge/internal/jorge-utils"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
@@ -16,7 +17,7 @@ const jorgeConfigDir = ".jorge"
 const configFileName = "config.yml"
 
 type JorgeConfig struct {
-	currentEnv string
+	CurrentEnv string `yaml:"currentEnv"`
 }
 
 func getJorgeDir() (string, error) {
@@ -100,10 +101,49 @@ func getConfig() (JorgeConfig, error) {
 	}
 
 	var config = JorgeConfig{
-		currentEnv: data["currentEnv"],
+		CurrentEnv: data["currentEnv"],
 	}
 
 	return config, nil
+}
+
+func setConfig(configUpdates JorgeConfig) (JorgeConfig, error) {
+	jorgeDir, err := getJorgeDir()
+	if err != nil {
+		return JorgeConfig{}, err
+	}
+
+	configFilePath := filepath.Join(jorgeDir, configFileName)
+	currentConfig, err := getConfig()
+
+	if err != nil {
+		return JorgeConfig{}, err
+	}
+
+	newConfig := currentConfig
+
+	if currentConfig.CurrentEnv != configUpdates.CurrentEnv {
+		newConfig.CurrentEnv = configUpdates.CurrentEnv
+		log.Debug(fmt.Sprintf("Found updated config key 'CurrentEnv' (from '%s' to '%s')", currentConfig.CurrentEnv, configUpdates.CurrentEnv))
+	} else {
+		log.Debug("Called setConfig without updates")
+	}
+
+	log.Debug(newConfig)
+	data, yamlErr := yaml.Marshal(&newConfig)
+
+	if yamlErr != nil {
+		return JorgeConfig{}, err
+	}
+
+	if writeError := ioutil.WriteFile(configFilePath, data, 0); writeError != nil {
+		log.Debug(fmt.Sprintf("Error while writing file"))
+		return JorgeConfig{}, writeError
+	} else {
+		log.Debug(fmt.Sprintf("Wrote updated config file %s", configFilePath))
+	}
+
+	return newConfig, nil
 }
 
 func getEnvs() ([]string, error) {
@@ -129,6 +169,50 @@ func getEnvs() ([]string, error) {
 	}
 
 	return envs, nil
+}
+
+func setConfigAsMain(target string, envName string) (int64, error) {
+	envsDir, err := getEnvsDirPath()
+
+	if err != nil {
+		return -1, err
+	}
+
+	_, targeFileName := filepath.Split(target)
+	log.Debug(fmt.Sprintf("Target file path %v. Found name %v", target, targeFileName))
+	storedFile, err := os.Stat(filepath.Join(envsDir, envName, targeFileName))
+
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return -6, err
+		} else {
+			return -7, err
+		}
+	}
+
+	if !storedFile.Mode().IsRegular() {
+		return -8, err
+	}
+	log.Debug(fmt.Sprintf("File %v is regular.", target))
+
+	// ----
+	sourceFilePath := filepath.Join(envsDir, envName, targeFileName)
+	sourceFile, err := os.Open(sourceFilePath)
+	defer sourceFile.Close()
+	log.Debug(fmt.Sprintf("Source file %v found", sourceFilePath))
+
+	_, fileName := filepath.Split(target)
+
+	destination, err := os.Create(filepath.Join(fileName))
+	log.Debug(fmt.Sprintf("Target file path %v", fileName))
+	if err != nil {
+		return -9, err
+	}
+	defer destination.Close()
+
+	nBytes, err := io.Copy(destination, sourceFile)
+	log.Debug(fmt.Sprintf("Wrote %d bytes to %v", nBytes, fileName))
+	return nBytes, err
 }
 
 func StoreConfigFile(path string, envName string) (int64, error) {
@@ -182,52 +266,54 @@ func StoreConfigFile(path string, envName string) (int64, error) {
 
 	nBytes, err := io.Copy(destination, sourceFile)
 	log.Debug(fmt.Sprintf("Wrote %d bytes from %v to %v", nBytes, path, destinationPath))
-	fmt.Println(nBytes)
 	return nBytes, err
 }
 
-func UseConfigFile(target string, envName string) (int64, error) {
-	envsDir, err := getEnvsDirPath()
+func UseConfigFile(target string, envName string, createEnv bool) (int64, error) {
 
-	if err != nil {
-		return -1, err
-	}
-
-	_, targeFileName := filepath.Split(target)
-	log.Debug(fmt.Sprintf("Target file path %v. Found name %v", target, targeFileName))
-	storedFile, err := os.Stat(filepath.Join(envsDir, envName, targeFileName))
-
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return -6, err
+	if createEnv {
+		if existingEnvs, err := getEnvs(); err == nil {
+			if jorgeutils.Contains(existingEnvs, envName) {
+				return -1, fmt.Errorf(fmt.Sprintf("Environment %s already exist", envName))
+			} else {
+				if _, err := StoreConfigFile(target, envName); err != nil {
+					return -1, err
+				} else {
+					log.Debug(fmt.Sprintf("Created new file for env %s", envName))
+				}
+			}
 		} else {
-			return -7, err
+			return -1, err
 		}
 	}
 
-	if !storedFile.Mode().IsRegular() {
-		return -8, err
+	if _, err := setConfigAsMain(target, envName); err != nil {
+		return -1, err
+	} else {
+		log.Debug(fmt.Sprintf("Used %s as main config file", envName))
+
+		newConfig := JorgeConfig{
+			CurrentEnv: envName,
+		}
+
+		if _, err := setConfig(newConfig); err != nil {
+			return -2, err
+		} else {
+			fmt.Println(fmt.Sprintf("Using environment %s", envName))
+			return 1, nil
+		}
 	}
-	log.Debug(fmt.Sprintf("File %v is regular.", target))
+}
 
-	// ----
-	sourceFilePath := filepath.Join(envsDir, envName, targeFileName)
-	sourceFile, err := os.Open(sourceFilePath)
-	defer sourceFile.Close()
-	log.Debug(fmt.Sprintf("Source file %v found", sourceFilePath))
-
-	_, fileName := filepath.Split(target)
-
-	destination, err := os.Create(filepath.Join(fileName))
-	log.Debug(fmt.Sprintf("Target file path %v", fileName))
-	if err != nil {
-		return -9, err
+func SelectEnvironment(envName string) error {
+	if _, err := setConfig(JorgeConfig{
+		CurrentEnv: envName,
+	}); err != nil {
+		return err
+	} else {
+		fmt.Println(fmt.Sprintf("Using environment %s", envName))
+		return nil
 	}
-	defer destination.Close()
-
-	nBytes, err := io.Copy(destination, sourceFile)
-	log.Debug(fmt.Sprintf("Wrote %d bytes to %v", nBytes, fileName))
-	return nBytes, err
 }
 
 func ListEnvironments() error {
@@ -244,7 +330,7 @@ func ListEnvironments() error {
 
 	currentEnvFound := false
 	for _, fileName := range envs {
-		if fileName == config.currentEnv {
+		if fileName == config.CurrentEnv {
 			currentEnvFound = true
 			fmt.Printf("* %s\n", fileName)
 		} else {
@@ -253,7 +339,7 @@ func ListEnvironments() error {
 	}
 
 	if !currentEnvFound {
-		fmt.Printf("* %s (uncommitted)\n", config.currentEnv)
+		fmt.Printf("* %s (uncommitted)\n", config.CurrentEnv)
 	}
 
 	return nil

@@ -25,12 +25,17 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		debug, _ := cmd.Flags().GetBool("debug")
+		newEnv, _ := cmd.Flags().GetBool("new")
 
 		if debug {
 			log.SetLevel(log.DebugLevel)
 		}
 
-		bytes, err := jorge.UseConfigFile(".env", "dev")
+		selectedEnv := args[0]
+
+		log.Debug(fmt.Sprintf("Using env %s", selectedEnv))
+
+		bytes, err := jorge.UseConfigFile(".env", selectedEnv, newEnv)
 
 		if err != nil {
 			panic(err)
@@ -58,5 +63,5 @@ func init() {
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	// useCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	useCmd.Flags().BoolP("new", "n", false, "Create a new environment")
 }

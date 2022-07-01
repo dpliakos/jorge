@@ -17,7 +17,8 @@ const jorgeConfigDir = ".jorge"
 const configFileName = "config.yml"
 
 type JorgeConfig struct {
-	CurrentEnv string `yaml:"currentEnv"`
+	CurrentEnv     string `yaml:"currentEnv"`
+	ConfigFilePath string `yaml:"configFilePath"`
 }
 
 func getJorgeDir() (string, error) {
@@ -28,7 +29,7 @@ func getJorgeDir() (string, error) {
 		log.Debug("Found .jorge dir")
 		return configFilePath, nil
 	} else if errors.Is(err, os.ErrNotExist) {
-		mkdirErr := os.Mkdir(jorgeConfigDir, 0777) // TODO: change permissions
+		mkdirErr := os.Mkdir(jorgeConfigDir, 0700) // TODO: change permissions
 
 		if mkdirErr != nil {
 			return "", mkdirErr
@@ -52,7 +53,7 @@ func getEnvsDirPath() (string, error) {
 	_, dirErr := os.Stat(envsDirPath)
 
 	if errors.Is(dirErr, os.ErrNotExist) {
-		err := os.Mkdir(envsDirPath, 0777)
+		err := os.Mkdir(envsDirPath, 0700)
 
 		if err != nil {
 			return "", err
@@ -77,11 +78,7 @@ func getConfig() (JorgeConfig, error) {
 	log.Debug(fmt.Sprintf("Using configuration file %s", configFilePath))
 
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			// TODO create
-		} else {
-			return JorgeConfig{}, err
-		}
+		return JorgeConfig{}, err
 	}
 
 	if !configFileMeta.Mode().IsRegular() {
@@ -101,13 +98,14 @@ func getConfig() (JorgeConfig, error) {
 	}
 
 	var config = JorgeConfig{
-		CurrentEnv: data["currentEnv"],
+		CurrentEnv:     data["currentEnv"],
+		ConfigFilePath: data["configFilePath"],
 	}
 
 	return config, nil
 }
 
-func setConfig(configUpdates JorgeConfig) (JorgeConfig, error) {
+func setInternalConfig(configUpdates JorgeConfig) (JorgeConfig, error) {
 	jorgeDir, err := getJorgeDir()
 	if err != nil {
 		return JorgeConfig{}, err
@@ -117,17 +115,33 @@ func setConfig(configUpdates JorgeConfig) (JorgeConfig, error) {
 	currentConfig, err := getConfig()
 
 	if err != nil {
-		return JorgeConfig{}, err
+		if errors.Is(err, os.ErrNotExist) {
+			currentConfig = JorgeConfig{}
+		} else {
+			return JorgeConfig{}, err
+		}
 	}
 
 	newConfig := currentConfig
 
+	numUpdates := 0
 	if currentConfig.CurrentEnv != configUpdates.CurrentEnv {
 		newConfig.CurrentEnv = configUpdates.CurrentEnv
 		log.Debug(fmt.Sprintf("Found updated config key 'CurrentEnv' (from '%s' to '%s')", currentConfig.CurrentEnv, configUpdates.CurrentEnv))
-	} else {
+		numUpdates++
+	}
+
+	if len(configUpdates.ConfigFilePath) > 0 && currentConfig.ConfigFilePath != configUpdates.ConfigFilePath {
+		newConfig.ConfigFilePath = configUpdates.ConfigFilePath
+		log.Debug(fmt.Sprintf("Found updated config key 'ConfigFilePath' (from '%s' to '%s')", currentConfig.ConfigFilePath, configUpdates.ConfigFilePath))
+		numUpdates++
+	}
+
+	if numUpdates == 0 {
 		log.Debug("Called setConfig without updates")
 	}
+
+	log.Debug(newConfig)
 
 	log.Debug(newConfig)
 	data, yamlErr := yaml.Marshal(&newConfig)
@@ -136,7 +150,7 @@ func setConfig(configUpdates JorgeConfig) (JorgeConfig, error) {
 		return JorgeConfig{}, err
 	}
 
-	if writeError := ioutil.WriteFile(configFilePath, data, 0); writeError != nil {
+	if writeError := ioutil.WriteFile(configFilePath, data, 0700); writeError != nil {
 		log.Debug(fmt.Sprintf("Error while writing file"))
 		return JorgeConfig{}, writeError
 	} else {
@@ -215,6 +229,25 @@ func setConfigAsMain(target string, envName string) (int64, error) {
 	return nBytes, err
 }
 
+func requestConfigFileFromUser() (string, error) {
+	fmt.Print("Config file path: ")
+	var filePath string
+
+	fmt.Scanln(&filePath)
+
+	configFileRelativePath := filepath.Clean(filePath)
+
+	if _, err := os.Stat(configFileRelativePath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", err
+		} else {
+			return "", err
+		}
+	} else {
+		return configFileRelativePath, nil
+	}
+}
+
 func StoreConfigFile(path string, envName string) (int64, error) {
 	envsDir, err := getEnvsDirPath()
 
@@ -237,7 +270,7 @@ func StoreConfigFile(path string, envName string) (int64, error) {
 	targetEnvDirName := filepath.Join(envsDir, envName)
 	if _, err := os.Stat(targetEnvDirName); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			mkdirErr := os.Mkdir(targetEnvDirName, 0777)
+			mkdirErr := os.Mkdir(targetEnvDirName, 0700)
 			if mkdirErr != nil {
 				return -3, mkdirErr
 			}
@@ -296,7 +329,7 @@ func UseConfigFile(target string, envName string, createEnv bool) (int64, error)
 			CurrentEnv: envName,
 		}
 
-		if _, err := setConfig(newConfig); err != nil {
+		if _, err := setInternalConfig(newConfig); err != nil {
 			return -2, err
 		} else {
 			fmt.Println(fmt.Sprintf("Using environment %s", envName))
@@ -306,7 +339,7 @@ func UseConfigFile(target string, envName string, createEnv bool) (int64, error)
 }
 
 func SelectEnvironment(envName string) error {
-	if _, err := setConfig(JorgeConfig{
+	if _, err := setInternalConfig(JorgeConfig{
 		CurrentEnv: envName,
 	}); err != nil {
 		return err
@@ -342,5 +375,40 @@ func ListEnvironments() error {
 		fmt.Printf("* %s (uncommitted)\n", config.CurrentEnv)
 	}
 
+	return nil
+}
+
+func Init() error {
+	jorgePath, err := getJorgeDir()
+
+	if err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(filepath.Join(jorgePath, configFileName)); err == nil {
+		fmt.Println(filepath.Join(jorgePath, configFileName))
+		return fmt.Errorf("Jorge is already initialized")
+	}
+
+	configFileName, err := requestConfigFileFromUser()
+
+	if err != nil {
+		return err
+	}
+
+	freshJorgeConfig := JorgeConfig{
+		CurrentEnv:     "default",
+		ConfigFilePath: configFileName,
+	}
+
+	if _, err := setInternalConfig(freshJorgeConfig); err != nil {
+		return err
+	}
+
+	_, storeFileErr := StoreConfigFile(freshJorgeConfig.ConfigFilePath, "default")
+
+	if storeFileErr != nil {
+		return err
+	}
 	return nil
 }

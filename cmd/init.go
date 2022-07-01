@@ -5,6 +5,9 @@ Copyright © 2022 Dimitrios Pliakos <dimitrispl96@gmail.com>
 package cmd
 
 import (
+	"fmt"
+
+	"github.com/dpliakos/jorge/internal/jorge"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -24,6 +27,14 @@ to quickly create a Cobra application.`,
 
 		if debug {
 			log.SetLevel(log.DebugLevel)
+		}
+
+		err := jorge.Init()
+
+		if err != nil {
+			fmt.Println("fuck")
+		} else {
+			fmt.Println("Created new jorge project")
 		}
 	},
 }

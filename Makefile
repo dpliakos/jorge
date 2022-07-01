@@ -1,3 +1,5 @@
+.PHONY: build
+
 default:
 	go run .
 
@@ -6,3 +8,6 @@ build:
 
 run:
 	go run .
+
+clean:
+	rm ./build/* ; rm -rf ./.jorge

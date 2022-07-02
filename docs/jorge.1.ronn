@@ -1,0 +1,30 @@
+
+jorge(1) -- A tool that helps to manage multiple configuration file versions during your development process
+====
+
+## Synopsis
+
+`jorge` [command] [options]
+
+
+## Description
+
+```
+Usage:
+  jorge [command]
+
+Available Commands:
+  commit      Stores the current config file
+  completion  Generate the autocompletion script for the specified shell
+  help        Help about any command
+  init        Initializes a jorge environment
+  ls          List the available environments
+  restore     Restores the current configuration file with the copy that is 
+              saved in the .jorge dir
+  use         Selects or creates an environment
+
+Flags:
+  -d, --debug     Prints debug messages
+  -h, --help      help for jorge
+  -v, --version   version for jorge
+```

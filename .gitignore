@@ -1,3 +1,6 @@
 build/*
 .env
 .jorge
+
+docs/jorge.1.html
+docs/jorge.1

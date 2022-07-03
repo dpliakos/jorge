@@ -1,4 +1,4 @@
-package jorgeutils
+package jorge
 
 import (
 	"bufio"

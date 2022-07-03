@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	jorgeutils "github.com/dpliakos/jorge/internal/jorge-utils"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
@@ -25,7 +24,12 @@ func getJorgeDir() (string, error) {
 	// TODO: check recursively for the parent dir
 	configFilePath := filepath.Join(jorgeConfigDir)
 
-	if _, err := os.Stat(configFilePath); err == nil {
+	if configDir, err := os.Stat(configFilePath); err == nil {
+
+		if !configDir.Mode().IsDir() {
+			return "", fmt.Errorf(fmt.Sprintf("path %s exist and it's not a dir", configFilePath))
+		}
+
 		log.Debug("Found .jorge dir")
 		return configFilePath, nil
 	} else if errors.Is(err, os.ErrNotExist) {
@@ -140,8 +144,6 @@ func setInternalConfig(configUpdates JorgeConfig) (JorgeConfig, error) {
 	if numUpdates == 0 {
 		log.Debug("Called setConfig without updates")
 	}
-
-	log.Debug(newConfig)
 
 	log.Debug(newConfig)
 	data, yamlErr := yaml.Marshal(&newConfig)
@@ -314,7 +316,7 @@ func UseConfigFile(envName string, createEnv bool) (int64, error) {
 
 	if createEnv {
 		if existingEnvs, err := getEnvs(); err == nil {
-			if jorgeutils.Contains(existingEnvs, envName) {
+			if Contains(existingEnvs, envName) {
 				return -1, fmt.Errorf(fmt.Sprintf("Environment %s already exist", envName))
 			} else {
 				if _, err := StoreConfigFile(target, envName); err != nil {
@@ -418,10 +420,10 @@ func Init() error {
 		return err
 	}
 
-	jorgeRecordExist, err := jorgeutils.ExistsInFile(".gitignore", ".jorge")
+	jorgeRecordExist, err := ExistsInFile(".gitignore", ".jorge")
 
 	if !jorgeRecordExist {
-		jorgeutils.AppendToFile(".gitignore", ".jorge")
+		AppendToFile(".gitignore", ".jorge")
 	}
 
 	return nil

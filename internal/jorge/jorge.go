@@ -32,17 +32,45 @@ func getJorgeDir() (string, error) {
 
 		log.Debug("Found .jorge dir")
 		return configFilePath, nil
-	} else if errors.Is(err, os.ErrNotExist) {
-		mkdirErr := os.Mkdir(jorgeConfigDir, 0700) // TODO: change permissions
-
-		if mkdirErr != nil {
-			return "", mkdirErr
-		} else {
-			log.Debug("Created .jorge dir")
-			return configFilePath, nil
-		}
 	} else {
 		return "", err
+	}
+}
+
+func createJorgeDir() (string, error) {
+
+	configDirPath := filepath.Join(jorgeConfigDir)
+
+	if _, err := os.Stat(configDirPath); err == nil {
+		return "", fmt.Errorf("This directory belongs to a jorge project")
+	} else if errors.Is(err, os.ErrNotExist) {
+		if err := os.Mkdir(configDirPath, 0700); err != nil {
+			return "", err
+		}
+		log.Debug("Created .jorge dir")
+		return configDirPath, nil
+	} else {
+		return "", err
+	}
+}
+
+func createJorgeEnvsDir() (string, error) {
+	if jorgeDir, err := getJorgeDir(); err != nil {
+		return "", err
+	} else {
+		if _, err := os.Stat(filepath.Join(jorgeDir, "envs")); err == nil {
+			return "", fmt.Errorf("Envs directory already created")
+		} else if errors.Is(err, os.ErrNotExist) {
+			if mkdirErr := os.Mkdir(filepath.Join(jorgeDir, "envs"), 0700); mkdirErr != nil {
+				return "", err
+			} else {
+				envsDirPath := filepath.Join(jorgeDir, "envs")
+				log.Debug(fmt.Sprintf("Created the envs dir %s", envsDirPath))
+				return envsDirPath, nil
+			}
+		} else {
+			return "", err
+		}
 	}
 }
 
@@ -57,18 +85,11 @@ func getEnvsDirPath() (string, error) {
 	_, dirErr := os.Stat(envsDirPath)
 
 	if errors.Is(dirErr, os.ErrNotExist) {
-		err := os.Mkdir(envsDirPath, 0700)
-
-		if err != nil {
-			return "", err
-		} else {
-			log.Debug(fmt.Sprintf("Created the envs dir %s", envsDirPath))
-		}
+		return createJorgeEnvsDir()
 	} else {
 		log.Debug(fmt.Sprintf("Found the envs dir at %s", envsDirPath))
+		return envsDirPath, nil
 	}
-
-	return envsDirPath, nil
 }
 
 func getInternalConfig() (JorgeConfig, error) {
@@ -387,19 +408,20 @@ func ListEnvironments() error {
 	return nil
 }
 
-func Init() error {
-	jorgePath, err := getJorgeDir()
+func Init(configFilePathFlag string) error {
+	_, err := createJorgeDir()
 
 	if err != nil {
 		return err
 	}
 
-	if _, err := os.Stat(filepath.Join(jorgePath, configFileName)); err == nil {
-		fmt.Println(filepath.Join(jorgePath, configFileName))
-		return fmt.Errorf("Jorge is already initialized")
-	}
+	var configFileName string
 
-	configFileName, err := requestConfigFileFromUser()
+	if len(configFilePathFlag) > 0 {
+		configFileName = configFilePathFlag
+	} else {
+		configFileName, err = requestConfigFileFromUser()
+	}
 
 	if err != nil {
 		return err

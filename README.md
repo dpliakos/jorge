@@ -12,8 +12,15 @@ This tool automates the second approach and stores multiple versions of the conf
 
 ### Build from source 
 
-- `go get .`
+- `go get`
 - `make build`
+- `make install` - requires `sudo`
+- Use it as a cli tool `jorge --version`
+
+### Build using docker
+
+- `docker build -t jorge .`
+- Use it as container `docker run --rm -v "$PWD":/root/projectRoot jorge jorge --version`
 
 
 

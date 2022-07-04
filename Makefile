@@ -1,3 +1,5 @@
+# This is a veeery simplistic makefile
+
 .PHONY: build
 
 default:
@@ -11,3 +13,9 @@ run:
 
 clean:
 	rm ./build/* ; rm -rf ./.jorge
+
+install:
+	cp ./build/jorge /usr/bin/jorge
+
+uninstall:
+	rm /usr/bin/jorge

@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
@@ -20,40 +21,105 @@ type JorgeConfig struct {
 	ConfigFilePath string `yaml:"configFilePath"`
 }
 
-func getJorgeDir() (string, error) {
-	// TODO: check recursively for the parent dir
-	configFilePath := filepath.Join(jorgeConfigDir)
+// hasJorgeDir
+// Determines whether the path pass as parameter is has a .jorge dir
+func hasJorgeDir(path string) bool {
+	if _, err := os.Stat(filepath.Join(path, ".jorge")); err != nil {
+		return false
+	} else {
+		return true
+	}
+}
 
-	if configDir, err := os.Stat(configFilePath); err == nil {
+// resolveJorgeDir
+// The jorge command uses the current active directory as it's root. This function
+// determines if the current directory has the .jorge dir in it, or if this
+// directory belongs to a jorge project by searching the .jorge dir in it's
+// ancestors
+func resolveJorgeDir() (string, error) {
+	currentAbsPath, err := filepath.Abs(filepath.Clean(filepath.Join(".")))
+
+	if err != nil {
+		return "", err
+	}
+
+	parts := strings.Split(currentAbsPath, string(os.PathSeparator))
+	var currentActivePath string
+	currentActivePath = currentAbsPath
+
+	for i := 0; i < len(parts); i++ {
+		if hasJorgeDir(currentActivePath) {
+			log.Debug("Resolve jorge dir at ", currentActivePath)
+			return currentActivePath, nil
+		} else {
+			currentActivePath = filepath.Join(currentActivePath, "..")
+		}
+	}
+
+	return "", fmt.Errorf("Current directory does not belong to a jorge project")
+}
+
+// getJorgeDir
+// Resolves the path of the .jorge directory and returns an absolute path that
+// leads to it
+func getJorgeDir() (string, error) {
+	basePath, err := resolveJorgeDir()
+	jorgeDir := filepath.Join(basePath, ".jorge")
+
+	if err != nil {
+		return "", err
+	}
+
+	if configDir, err := os.Stat(jorgeDir); err == nil {
 
 		if !configDir.Mode().IsDir() {
-			return "", fmt.Errorf(fmt.Sprintf("path %s exist and it's not a dir", configFilePath))
+			return "", fmt.Errorf(fmt.Sprintf("path %s exist and it's not a dir", jorgeDir))
 		}
 
 		log.Debug("Found .jorge dir")
-		return configFilePath, nil
+		return jorgeDir, nil
 	} else {
 		return "", err
 	}
 }
 
+// createJorgeDir
+// Creates the .jorge directory in the current active directory of the process
 func createJorgeDir() (string, error) {
 
 	configDirPath := filepath.Join(jorgeConfigDir)
 
-	if _, err := os.Stat(configDirPath); err == nil {
+	if _, err := resolveJorgeDir(); err == nil {
 		return "", fmt.Errorf("This directory belongs to a jorge project")
-	} else if errors.Is(err, os.ErrNotExist) {
+	} else if err.Error() == "Current directory does not belong to a jorge project" {
 		if err := os.Mkdir(configDirPath, 0700); err != nil {
 			return "", err
 		}
-		log.Debug("Created .jorge dir")
-		return configDirPath, nil
+
+		if basePath, err := resolveJorgeDir(); err == nil {
+			log.Debug("Created .jorge dir")
+			return filepath.Join(basePath, configDirPath), nil
+		} else {
+			return "", err
+		}
 	} else {
 		return "", err
 	}
 }
 
+// removeJorgeDir
+// Deletes the .jorge directory and all of it's contents
+func removeJorgeDir() error {
+	if jorgeDir, err := resolveJorgeDir(); err != nil {
+		return err
+	} else {
+		fmt.Printf("Jorge init failed. Please remove %s\n", filepath.Join(jorgeDir, ".jorge"))
+		return nil
+	}
+}
+
+// createJorgeEnvsDir
+// Creates the .jorge/envs directory
 func createJorgeEnvsDir() (string, error) {
 	if jorgeDir, err := getJorgeDir(); err != nil {
 		return "", err
@@ -74,6 +140,8 @@ func createJorgeEnvsDir() (string, error) {
 	}
 }
 
+// getEnvsDirPath
+// Returns the absolute path to the envs directory
 func getEnvsDirPath() (string, error) {
 	jorgeDir, err := getJorgeDir()
 	if err != nil {
@@ -92,6 +160,9 @@ func getEnvsDirPath() (string, error) {
 	}
 }
 
+// getInternalConfig
+// Returns the current active configuration for the Jorge command.
+// The internal configuration is stored a yml file found under the .jorge dir
 func getInternalConfig() (JorgeConfig, error) {
 	jorgeDir, err := getJorgeDir()
 	if err != nil {
@@ -130,6 +201,9 @@ func getInternalConfig() (JorgeConfig, error) {
 	return config, nil
 }
 
+// setInternalConfig
+// Given a JorgeConfig struct, it updates the jorge configuration with the
+// values found in the parameter struct
 func setInternalConfig(configUpdates JorgeConfig) (JorgeConfig, error) {
 	jorgeDir, err := getJorgeDir()
 	if err != nil {
@@ -183,6 +257,8 @@ func setInternalConfig(configUpdates JorgeConfig) (JorgeConfig, error) {
 	return newConfig, nil
 }
 
+// getEnvs
+// It returns a list with the available environments
 func getEnvs() ([]string, error) {
 	envsDirPath, err := getEnvsDirPath()
 
@@ -208,6 +284,9 @@ func getEnvs() ([]string, error) {
 	return envs, nil
 }
 
+// setConfigAsMain
+// Given an existing environment, it replaces the user configuration file, with
+// the one that is stored for the jorge environment
 func setConfigAsMain(target string, envName string) (int64, error) {
 	envsDir, err := getEnvsDirPath()
 
@@ -252,6 +331,9 @@ func setConfigAsMain(target string, envName string) (int64, error) {
 	return nBytes, err
 }
 
+// requestConfigFileFromUser
+// It shows a cli prompt that accepts a string. The string is expected to be the
+// filepath to the user's configuration file
 func requestConfigFileFromUser() (string, error) {
 	fmt.Print("Config file path: ")
 	var filePath string
@@ -271,6 +353,8 @@ func requestConfigFileFromUser() (string, error) {
 	}
 }
 
+// StoreConfigFile
+// It stores the current active user config file under an jorge environment name
 func StoreConfigFile(path string, envName string) (int64, error) {
 	envsDir, err := getEnvsDirPath()
 
@@ -325,6 +409,9 @@ func StoreConfigFile(path string, envName string) (int64, error) {
 	return nBytes, err
 }
 
+// UseConfigFile
+// It replaces the current active user configuration file with the one that is
+// stored under the jorge environment
 func UseConfigFile(envName string, createEnv bool) (int64, error) {
 
 	config, err := getInternalConfig()
@@ -379,6 +466,8 @@ func SelectEnvironment(envName string) error {
 	}
 }
 
+// ListEnvironments
+// Shows a list with all the available environment for the user
 func ListEnvironments() error {
 	envs, err := getEnvs()
 
@@ -408,12 +497,24 @@ func ListEnvironments() error {
 	return nil
 }
 
-func Init(configFilePathFlag string) error {
-	_, err := createJorgeDir()
+func cleanupInit() {
+	if a := recover(); a != nil {
+		fmt.Println(a)
+		removeJorgeDir()
+		panic(a)
+	}
+}
 
+// Init
+// Initializes a jorge project by creating the .jorge directory, setting the
+// first environment and requesting the config file path for the user
+func Init(configFilePathFlag string) error {
+	jorgeDir, err := createJorgeDir()
 	if err != nil {
 		return err
 	}
+
+	defer cleanupInit()
 
 	var configFileName string
 
@@ -424,22 +525,39 @@ func Init(configFilePathFlag string) error {
 	}
 
 	if err != nil {
-		return err
+		panic(err)
+	}
+
+	absConfigFileName, err := filepath.Abs(configFileName)
+
+	if err != nil {
+		panic(err)
+	}
+
+	if _, err := os.Stat(configFileName); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			panic(fmt.Errorf("File %s does not exist", configFileName))
+		}
+	}
+
+	var relativePathToConfig string
+	if relativePathToConfig, err = filepath.Rel(filepath.Join(jorgeDir, ".."), absConfigFileName); err != nil {
+		panic(err)
 	}
 
 	freshJorgeConfig := JorgeConfig{
 		CurrentEnv:     "default",
-		ConfigFilePath: configFileName,
+		ConfigFilePath: relativePathToConfig,
 	}
 
 	if _, err := setInternalConfig(freshJorgeConfig); err != nil {
-		return err
+		panic(err)
 	}
 
 	_, storeFileErr := StoreConfigFile(freshJorgeConfig.ConfigFilePath, "default")
 
 	if storeFileErr != nil {
-		return err
+		panic(err)
 	}
 
 	jorgeRecordExist, err := ExistsInFile(".gitignore", ".jorge")
@@ -451,14 +569,23 @@ func Init(configFilePathFlag string) error {
 	return nil
 }
 
+// CommitCurrentEnv
+// It stores the current active user configuration file under the current selected
+// jorge environment (found at the ./jorge/config.yml file)
 func CommitCurrentEnv() error {
 	config, err := getInternalConfig()
 
 	if err != nil {
 		return err
 	}
+	jorgeDir, err := resolveJorgeDir()
 
-	_, storeConfigErr := StoreConfigFile(config.ConfigFilePath, config.CurrentEnv)
+	if err != nil {
+		return err
+	}
+
+	activeUserConfig := filepath.Join(jorgeDir, config.ConfigFilePath)
+	_, storeConfigErr := StoreConfigFile(activeUserConfig, config.CurrentEnv)
 
 	if storeConfigErr != nil {
 		return storeConfigErr
@@ -467,6 +594,9 @@ func CommitCurrentEnv() error {
 	}
 }
 
+// RestoreEnv
+// It replaces the current active configuration file, with the one that is
+// stored under the current environment (found under the ./.jorge/config.yml)
 func RestoreEnv() error {
 	config, err := getInternalConfig()
 
@@ -474,7 +604,13 @@ func RestoreEnv() error {
 		return err
 	}
 
-	_, restoreError := setConfigAsMain(config.ConfigFilePath, config.CurrentEnv)
+	jorgeDir, err := resolveJorgeDir()
+	if err != nil {
+		return err
+	}
+
+	activeUserConfig := filepath.Join(jorgeDir, config.ConfigFilePath)
+	_, restoreError := setConfigAsMain(activeUserConfig, config.CurrentEnv)
 
 	if restoreError != nil {
 		return restoreError

@@ -1,11 +1,12 @@
-# Jorge - Secret manager
+# Jorge
 
-A tool that helps to manage multiple configuration file versions during your development process
+A tool that helps to manage multiple configuration file versions of an application under development
 
 ## Problem
 
-I usually am in a situation where I have to deal with multiple versions of configuration files with secrets  when I develop or debug an application. To solve this problem I use comments when the configuration file format supports it or I hold multiple copies in another place.
-This tool automates the second approach and stores multiple versions of the configuration files and allows you to quickly access them
+I usually am in a situation where I have to deal with multiple versions of configuration files with secrets  when I develop or debug an application. 
+To solve this problem I use comments when the configuration file format supports it or I hold multiple copies in another place.
+This tool automates the second approach by storing multiple versions of the configuration files and allows you to quickly access them.
 
 
 ## Installation

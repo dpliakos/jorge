@@ -22,7 +22,7 @@ var initCmd = &cobra.Command{
 		err := jorge.Init()
 
 		if err != nil {
-			fmt.Println("This directory already belongs in a jorge project")
+			fmt.Println(err.Error())
 		} else {
 			fmt.Println("Created new jorge project")
 		}

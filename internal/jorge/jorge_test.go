@@ -13,8 +13,10 @@ func TestGetJorgeDir(t *testing.T) {
 	defer os.Remove(testingRoot)
 	os.Chdir(testingRoot)
 
-	path, err := getJorgeDir()
+	os.Mkdir(filepath.Join(testingRoot, ".jorge"), 0700)
 	defer os.Remove(".jorge")
+
+	path, err := getJorgeDir()
 
 	if err != nil {
 		t.Fail()
@@ -25,13 +27,13 @@ func TestGetJorgeDir(t *testing.T) {
 	}
 }
 
-func TestGetJorgeDirCreatesJorgeDir(t *testing.T) {
+func TestCreateJorgeDirCreatesJorgeDir(t *testing.T) {
 	testingRoot := filepath.Join(os.TempDir(), "jorge-testing")
 	os.Mkdir(testingRoot, 0700)
 	defer os.Remove(testingRoot)
 	os.Chdir(testingRoot)
 
-	_, err := getJorgeDir()
+	_, err := createJorgeDir()
 	defer os.Remove(".jorge")
 
 	if err != nil {
@@ -65,15 +67,20 @@ func TestGetEnvsPathDir(t *testing.T) {
 	defer os.Remove(testingRoot)
 	os.Chdir(testingRoot)
 
-	path, err := getEnvsDirPath()
+	os.Mkdir(filepath.Join(testingRoot, ".jorge"), 0700)
 	defer os.Remove(filepath.Join(testingRoot, ".jorge"))
+
+	path, err := getEnvsDirPath()
 	defer os.Remove(filepath.Join(testingRoot, ".jorge", "envs"))
 
 	t.Log(path)
 	t.Log(err)
 
-	if err != nil || path != filepath.Join(".jorge", "envs") {
-		t.Fail()
+	if err != nil {
+		t.Log(err)
+		t.Fatal(err)
+	} else if path != filepath.Join(".jorge", "envs") {
+		t.Fatalf("Expected %s, but found %s", filepath.Join(".jorge", "envs"), path)
 	}
 }
 

@@ -408,14 +408,20 @@ func ListEnvironments() error {
 	return nil
 }
 
-func Init() error {
+func Init(configFilePathFlag string) error {
 	_, err := createJorgeDir()
 
 	if err != nil {
 		return err
 	}
 
-	configFileName, err := requestConfigFileFromUser()
+	var configFileName string
+
+	if len(configFilePathFlag) > 0 {
+		configFileName = configFilePathFlag
+	} else {
+		configFileName, err = requestConfigFileFromUser()
+	}
 
 	if err != nil {
 		return err

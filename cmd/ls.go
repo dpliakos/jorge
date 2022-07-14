@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/dpliakos/jorge/internal/jorge"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -21,7 +24,9 @@ var lsCmd = &cobra.Command{
 			log.SetLevel(log.DebugLevel)
 		}
 
-		jorge.ListEnvironments()
+		if err := jorge.ListEnvironments(); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+		}
 	},
 }
 

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/dpliakos/jorge/internal/jorge"
 	log "github.com/sirupsen/logrus"
@@ -23,7 +24,7 @@ var initCmd = &cobra.Command{
 		err := jorge.Init(configFilePath)
 
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Fprintln(os.Stderr, err.Error())
 		} else {
 			fmt.Println("Created new jorge project")
 		}

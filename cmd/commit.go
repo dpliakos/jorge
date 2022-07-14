@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/dpliakos/jorge/internal/jorge"
 	log "github.com/sirupsen/logrus"
@@ -23,7 +24,7 @@ var commitCmd = &cobra.Command{
 		err := jorge.CommitCurrentEnv()
 
 		if err != nil {
-			panic(err)
+			fmt.Fprintln(os.Stderr, err.Error())
 		} else {
 			fmt.Println("Env committed")
 		}

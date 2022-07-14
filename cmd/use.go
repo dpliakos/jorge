@@ -32,16 +32,16 @@ var useCmd = &cobra.Command{
 		bytes, err := jorge.UseConfigFile(selectedEnv, newEnv)
 
 		if err != nil {
-			panic(err)
+			fmt.Fprintln(os.Stderr, err.Error())
 		} else if bytes < 0 {
-			fmt.Println("Could not use the target file")
+			fmt.Fprintln(os.Stderr, "Could not use the target file")
 			os.Exit(int(bytes))
 		} else if bytes == 0 {
-			fmt.Println("Target file is empty. Nothing to do")
+			fmt.Fprintln(os.Stderr, "Target file is empty. Nothing to do")
 		} else if bytes > 0 {
 			fmt.Println(fmt.Sprintf("Using environment %s", selectedEnv))
 		} else {
-			fmt.Println("What the actual fuck?")
+			fmt.Fprintln(os.Stderr, "Undefined error")
 		}
 	},
 }

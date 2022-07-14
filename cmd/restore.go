@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/dpliakos/jorge/internal/jorge"
 	log "github.com/sirupsen/logrus"
@@ -22,7 +23,7 @@ var restoreCmd = &cobra.Command{
 		err := jorge.RestoreEnv()
 
 		if err != nil {
-			panic(err)
+			fmt.Fprintln(os.Stderr, err.Error())
 		} else {
 			fmt.Println("Env restored")
 		}

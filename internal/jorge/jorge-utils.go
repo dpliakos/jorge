@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/user"
 )
 
 func Contains(elems []string, v string) bool {
@@ -54,4 +55,13 @@ func AppendToFile(filePath string, element string) error {
 	} else {
 		return nil
 	}
+}
+
+func GetUser() string {
+	user, err := user.Current()
+	if err != nil {
+		return "currentUser"
+	}
+
+	return user.Username
 }

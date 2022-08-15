@@ -24,7 +24,18 @@ var commitCmd = &cobra.Command{
 		err := jorge.CommitCurrentEnv()
 
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
+			if debug && err.OriginalErr != nil {
+				fmt.Fprintf(os.Stderr, "%s\n", err.OriginalErr.Error())
+			}
+
+			fmt.Fprintf(os.Stderr, "%s\n", err.Message)
+			fmt.Fprintf(os.Stderr, "%s\n", err.Solution)
+
+			if err.Code > 0 {
+				os.Exit(err.Code)
+			} else {
+				os.Exit(1)
+			}
 		} else {
 			fmt.Println("Env committed")
 		}

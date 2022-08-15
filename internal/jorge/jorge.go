@@ -36,11 +36,17 @@ func hasJorgeDir(path string) bool {
 // determines if the current directory has the .jorge dir in it, or if this
 // directory belongs to a jorge project by searching the .jorge dir in it's
 // ancestors
-func resolveJorgeDir() (string, error) {
+func resolveJorgeDir() (string, *EncapsulatedError) {
 	currentAbsPath, err := filepath.Abs(filepath.Clean(filepath.Join(".")))
 
 	if err != nil {
-		return "", err
+		encErr := EncapsulatedError{
+			OriginalErr: err,
+			Message:     ErrorCode.Str(E000),
+			Solution:    SolutionMessage.Str(S000),
+			Code:        1,
+		}
+		return "", &encErr
 	}
 
 	parts := strings.Split(currentAbsPath, string(os.PathSeparator))
@@ -56,13 +62,20 @@ func resolveJorgeDir() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("Current directory does not belong to a jorge project")
+	encErr := EncapsulatedError{
+		OriginalErr: ErrorCode.Err(E100),
+		Message:     ErrorCode.Str(E100),
+		Solution:    SolutionMessage.Str(S100),
+		Code:        100,
+	}
+
+	return "", &encErr
 }
 
 // getJorgeDir
 // Resolves the path of the .jorge directory and returns an absolute path that
 // leads to it
-func getJorgeDir() (string, error) {
+func getJorgeDir() (string, *EncapsulatedError) {
 	basePath, err := resolveJorgeDir()
 	jorgeDir := filepath.Join(basePath, ".jorge")
 
@@ -73,27 +86,46 @@ func getJorgeDir() (string, error) {
 	if configDir, err := os.Stat(jorgeDir); err == nil {
 
 		if !configDir.Mode().IsDir() {
-			return "", fmt.Errorf(fmt.Sprintf("path %s exist and it's not a dir", jorgeDir))
+			encErr := EncapsulatedError{
+				OriginalErr: ErrorCode.Err(E001),
+				Message:     ErrorCode.Str(E101),
+				Solution:    SolutionMessage.Str(S001, jorgeDir),
+				Code:        001,
+			}
+
+			return "", &encErr
 		}
 
 		log.Debug("Found .jorge dir")
 		return jorgeDir, nil
 	} else {
-		return "", err
+		encErr := EncapsulatedError{
+			OriginalErr: err,
+			Message:     ErrorCode.Str(E100),
+			Solution:    SolutionMessage.Str(S000),
+			Code:        100,
+		}
+		return "", &encErr
 	}
 }
 
 // createJorgeDir
 // Creates the .jorge directory in the current active directory of the process
-func createJorgeDir() (string, error) {
+func createJorgeDir() (string, *EncapsulatedError) {
 
 	configDirPath := filepath.Join(jorgeConfigDir)
 
 	if _, err := resolveJorgeDir(); err == nil {
-		return "", fmt.Errorf("This directory belongs to a jorge project")
-	} else if err.Error() == "Current directory does not belong to a jorge project" {
+		return "", err
+	} else if ErrorCode(E100).Is(ErrorCode(err.Message)) {
 		if err := os.Mkdir(configDirPath, 0700); err != nil {
-			return "", err
+			encErr := EncapsulatedError{
+				OriginalErr: err,
+				Message:     ErrorCode(E003).Str(),
+				Solution:    SolutionMessage.Str(S002, GetUser()),
+				Code:        3,
+			}
+			return "", &encErr
 		}
 
 		if basePath, err := resolveJorgeDir(); err == nil {
@@ -109,7 +141,7 @@ func createJorgeDir() (string, error) {
 
 // removeJorgeDir
 // Deletes the .jorge directory and all of it's contents
-func removeJorgeDir() error {
+func removeJorgeDir() *EncapsulatedError {
 	if jorgeDir, err := resolveJorgeDir(); err != nil {
 		return err
 	} else {
@@ -120,29 +152,47 @@ func removeJorgeDir() error {
 
 // createJorgeEnvsDir
 // Creates the .jorge/envs directory
-func createJorgeEnvsDir() (string, error) {
+func createJorgeEnvsDir() (string, *EncapsulatedError) {
 	if jorgeDir, err := getJorgeDir(); err != nil {
 		return "", err
 	} else {
 		if _, err := os.Stat(filepath.Join(jorgeDir, "envs")); err == nil {
-			return "", fmt.Errorf("Envs directory already created")
+			encErr := EncapsulatedError{
+				OriginalErr: ErrorCode.Err(E001),
+				Message:     ErrorCode.Str(E102),
+				Solution:    SolutionMessage.Str(S101),
+				Code:        1,
+			}
+			return "", &encErr
 		} else if errors.Is(err, os.ErrNotExist) {
 			if mkdirErr := os.Mkdir(filepath.Join(jorgeDir, "envs"), 0700); mkdirErr != nil {
-				return "", err
+				encError := EncapsulatedError{
+					OriginalErr: mkdirErr,
+					Message:     ErrorCode.Str(E003),
+					Solution:    SolutionMessage.Str(S002, GetUser()),
+					Code:        3,
+				}
+				return "", &encError
 			} else {
 				envsDirPath := filepath.Join(jorgeDir, "envs")
 				log.Debug(fmt.Sprintf("Created the envs dir %s", envsDirPath))
 				return envsDirPath, nil
 			}
 		} else {
-			return "", err
+			encError := EncapsulatedError{
+				OriginalErr: err,
+				Message:     ErrorCode.Str(E002),
+				Solution:    SolutionMessage.Str(S100),
+				Code:        2,
+			}
+			return "", &encError
 		}
 	}
 }
 
 // getEnvsDirPath
 // Returns the absolute path to the envs directory
-func getEnvsDirPath() (string, error) {
+func getEnvsDirPath() (string, *EncapsulatedError) {
 	jorgeDir, err := getJorgeDir()
 	if err != nil {
 		return "", err
@@ -163,10 +213,10 @@ func getEnvsDirPath() (string, error) {
 // getInternalConfig
 // Returns the current active configuration for the Jorge command.
 // The internal configuration is stored a yml file found under the .jorge dir
-func getInternalConfig() (JorgeConfig, error) {
-	jorgeDir, err := getJorgeDir()
-	if err != nil {
-		return JorgeConfig{}, err
+func getInternalConfig() (JorgeConfig, *EncapsulatedError) {
+	jorgeDir, encErr := getJorgeDir()
+	if encErr != nil {
+		return JorgeConfig{}, encErr
 	}
 
 	configFilePath := filepath.Join(jorgeDir, configFileName)
@@ -174,11 +224,23 @@ func getInternalConfig() (JorgeConfig, error) {
 	log.Debug(fmt.Sprintf("Using configuration file %s", configFilePath))
 
 	if err != nil {
-		return JorgeConfig{}, err
+		encErr := EncapsulatedError{
+			OriginalErr: err,
+			Message:     ErrorCode.Str(E103),
+			Solution:    SolutionMessage.Str(S102),
+			Code:        103,
+		}
+		return JorgeConfig{}, &encErr
 	}
 
 	if !configFileMeta.Mode().IsRegular() {
-		return JorgeConfig{}, fmt.Errorf("jorge config is not a regular file")
+		encErr := EncapsulatedError{
+			OriginalErr: ErrorCode.Err(E004),
+			Message:     ErrorCode.Str(E104),
+			Solution:    SolutionMessage.Str(S102),
+			Code:        4,
+		}
+		return JorgeConfig{}, &encErr
 	} else {
 		log.Debug("Jorge config file is regular file")
 	}
@@ -186,11 +248,16 @@ func getInternalConfig() (JorgeConfig, error) {
 	fileData, err := ioutil.ReadFile(configFilePath)
 
 	data := make(map[string]string)
-	err2 := yaml.Unmarshal(fileData, &data)
+	ymlError := yaml.Unmarshal(fileData, &data)
 
-	if err2 != nil {
-		log.Fatal(err2)
-		return JorgeConfig{}, err2
+	if ymlError != nil {
+		encErr := EncapsulatedError{
+			OriginalErr: ymlError,
+			Message:     ErrorCode.Str(E105),
+			Solution:    SolutionMessage.Str(S102),
+			Code:        105,
+		}
+		return JorgeConfig{}, &encErr
 	}
 
 	var config = JorgeConfig{
@@ -204,7 +271,7 @@ func getInternalConfig() (JorgeConfig, error) {
 // setInternalConfig
 // Given a JorgeConfig struct, it updates the jorge configuration with the
 // values found in the parameter struct
-func setInternalConfig(configUpdates JorgeConfig) (JorgeConfig, error) {
+func setInternalConfig(configUpdates JorgeConfig) (JorgeConfig, *EncapsulatedError) {
 	jorgeDir, err := getJorgeDir()
 	if err != nil {
 		return JorgeConfig{}, err
@@ -214,7 +281,7 @@ func setInternalConfig(configUpdates JorgeConfig) (JorgeConfig, error) {
 	currentConfig, err := getInternalConfig()
 
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err.OriginalErr, os.ErrNotExist) {
 			currentConfig = JorgeConfig{}
 		} else {
 			return JorgeConfig{}, err
@@ -249,7 +316,14 @@ func setInternalConfig(configUpdates JorgeConfig) (JorgeConfig, error) {
 
 	if writeError := ioutil.WriteFile(configFilePath, data, 0700); writeError != nil {
 		log.Debug(fmt.Sprintf("Error while writing file"))
-		return JorgeConfig{}, writeError
+
+		encError := EncapsulatedError{
+			OriginalErr: writeError,
+			Message:     ErrorCode.Str(E106),
+			Solution:    SolutionMessage.Str(S102),
+			Code:        106,
+		}
+		return JorgeConfig{}, &encError
 	} else {
 		log.Debug(fmt.Sprintf("Wrote updated config file %s", configFilePath))
 	}
@@ -259,7 +333,7 @@ func setInternalConfig(configUpdates JorgeConfig) (JorgeConfig, error) {
 
 // getEnvs
 // It returns a list with the available environments
-func getEnvs() ([]string, error) {
+func getEnvs() ([]string, *EncapsulatedError) {
 	envsDirPath, err := getEnvsDirPath()
 
 	if err != nil {
@@ -267,12 +341,18 @@ func getEnvs() ([]string, error) {
 	}
 
 	log.Debug(fmt.Sprintf("Using envs dir %s", envsDirPath))
-	files, err := ioutil.ReadDir(envsDirPath)
+	files, readEnvsErr := ioutil.ReadDir(envsDirPath)
 
 	log.Debug(fmt.Sprintf("Found %d files under the envs dir.", len(files)))
 
-	if err != nil {
-		return []string{}, err
+	if readEnvsErr != nil {
+		encErr := EncapsulatedError{
+			OriginalErr: readEnvsErr,
+			Message:     ErrorCode.Str(E103),
+			Solution:    SolutionMessage.Str(S102),
+			Code:        103,
+		}
+		return []string{}, &encErr
 	}
 
 	envs := make([]string, len(files))
@@ -287,7 +367,7 @@ func getEnvs() ([]string, error) {
 // setConfigAsMain
 // Given an existing environment, it replaces the user configuration file, with
 // the one that is stored for the jorge environment
-func setConfigAsMain(target string, envName string) (int64, error) {
+func setConfigAsMain(target string, envName string) (int64, *EncapsulatedError) {
 	envsDir, err := getEnvsDirPath()
 
 	if err != nil {
@@ -296,45 +376,85 @@ func setConfigAsMain(target string, envName string) (int64, error) {
 
 	_, targeFileName := filepath.Split(target)
 	log.Debug(fmt.Sprintf("Target file path %v. Found name %v", target, targeFileName))
-	storedFile, err := os.Stat(filepath.Join(envsDir, envName, targeFileName))
+	storedFile, storedFileErr := os.Stat(filepath.Join(envsDir, envName, targeFileName))
 
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return -6, err
+	if storedFileErr != nil {
+		if errors.Is(storedFileErr, os.ErrNotExist) {
+			encErr := EncapsulatedError{
+				OriginalErr: storedFileErr,
+				Message:     ErrorCode.Str(E111),
+				Solution:    SolutionMessage.Str(S105, envName),
+				Code:        111,
+			}
+			return -1, &encErr
 		} else {
-			return -7, err
+			encErr := EncapsulatedError{
+				OriginalErr: storedFileErr,
+				Message:     ErrorCode.Str(E005),
+				Solution:    SolutionMessage.Str(S102),
+				Code:        5,
+			}
+			return -1, &encErr
 		}
 	}
 
 	if !storedFile.Mode().IsRegular() {
-		return -8, err
+		return -1, err
 	}
 	log.Debug(fmt.Sprintf("File %v is regular.", target))
 
 	// ----
 	sourceFilePath := filepath.Join(envsDir, envName, targeFileName)
-	sourceFile, err := os.Open(sourceFilePath)
+	sourceFile, sourceFileErr := os.Open(sourceFilePath)
 	defer sourceFile.Close()
+
+	if sourceFileErr != nil {
+		encErr := EncapsulatedError{
+			OriginalErr: sourceFileErr,
+			Message:     ErrorCode.Str(E006),
+			Solution:    SolutionMessage.Str(S003, sourceFilePath),
+			Code:        6,
+		}
+
+		return -1, &encErr
+	}
+
 	log.Debug(fmt.Sprintf("Source file %v found", sourceFilePath))
 
 	_, fileName := filepath.Split(target)
 
-	destination, err := os.Create(filepath.Join(target))
+	destination, destinationErr := os.Create(filepath.Join(target))
 	log.Debug(fmt.Sprintf("Target file path %v", target))
-	if err != nil {
-		return -9, err
+	if destinationErr != nil {
+		encErr := EncapsulatedError{
+			OriginalErr: destinationErr,
+			Message:     ErrorCode.Str(E007),
+			Solution:    SolutionMessage.Str(S002, GetUser()),
+			Code:        7,
+		}
+		return -1, &encErr
 	}
 	defer destination.Close()
 
-	nBytes, err := io.Copy(destination, sourceFile)
+	nBytes, copyErr := io.Copy(destination, sourceFile)
 	log.Debug(fmt.Sprintf("Wrote %d bytes to %v", nBytes, fileName))
-	return nBytes, err
+
+	if copyErr != nil {
+		encError := EncapsulatedError{
+			OriginalErr: copyErr,
+			Message:     ErrorCode.Str(E007),
+			Solution:    SolutionMessage.Str(S002, GetUser()),
+			Code:        7,
+		}
+		return -1, &encError
+	}
+	return nBytes, nil
 }
 
 // requestConfigFileFromUser
 // It shows a cli prompt that accepts a string. The string is expected to be the
 // filepath to the user's configuration file
-func requestConfigFileFromUser() (string, error) {
+func requestConfigFileFromUser() (string, *EncapsulatedError) {
 	fmt.Print("Config file path: ")
 	var filePath string
 
@@ -344,32 +464,135 @@ func requestConfigFileFromUser() (string, error) {
 
 	if _, err := os.Stat(configFileRelativePath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return "", err
+			encErr := EncapsulatedError{
+				OriginalErr: err,
+				Message:     ErrorCode.Str(E006),
+				Solution:    SolutionMessage.Str(S003, configFileRelativePath),
+				Code:        6,
+			}
+			return "", &encErr
 		} else {
-			return "", err
+			encErr := EncapsulatedError{
+				OriginalErr: err,
+				Message:     ErrorCode.Str(E005),
+				Solution:    SolutionMessage.Str(S003, configFileRelativePath),
+				Code:        5,
+			}
+			return "", &encErr
 		}
 	} else {
 		return configFileRelativePath, nil
 	}
 }
 
+func initializeJorgeProject(configFilePathFlag string) *EncapsulatedError {
+	jorgeDir, err := createJorgeDir()
+	if err != nil {
+		return err
+	}
+
+	var configFileName string
+
+	if len(configFilePathFlag) > 0 {
+		configFileName = configFilePathFlag
+	} else {
+		configFileName, err = requestConfigFileFromUser()
+	}
+
+	if err != nil {
+		return err
+	}
+
+	absConfigFileName, absConfigFileNameErr := filepath.Abs(configFileName)
+
+	if absConfigFileNameErr != nil {
+		encErr := EncapsulatedError{
+			OriginalErr: absConfigFileNameErr,
+			Message:     ErrorCode.Str(E008),
+			Solution:    SolutionMessage.Str(S003, absConfigFileName),
+			Code:        8,
+		}
+
+		return &encErr
+	}
+
+	if _, err := os.Stat(configFileName); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			encErr := EncapsulatedError{
+				OriginalErr: err,
+				Message:     ErrorCode.Str(E107),
+				Solution:    SolutionMessage.Str(S003, configFileName),
+				Code:        107,
+			}
+			return &encErr
+		}
+	}
+
+	var relativePathToConfig string
+	var relativePathToConfigErr error
+	if relativePathToConfig, relativePathToConfigErr = filepath.Rel(filepath.Join(jorgeDir, ".."), absConfigFileName); relativePathToConfigErr != nil {
+		encErr := EncapsulatedError{
+			OriginalErr: relativePathToConfigErr,
+			Message:     ErrorCode.Str(E107),
+			Solution:    SolutionMessage.Str(S003, absConfigFileName),
+			Code:        107,
+		}
+		return &encErr
+	}
+
+	freshJorgeConfig := JorgeConfig{
+		CurrentEnv:     "default",
+		ConfigFilePath: relativePathToConfig,
+	}
+
+	if _, err := setInternalConfig(freshJorgeConfig); err != nil {
+		return err
+	}
+
+	_, storeFileErr := StoreConfigFile(freshJorgeConfig.ConfigFilePath, "default")
+
+	if storeFileErr != nil {
+		return storeFileErr
+	}
+
+	jorgeRecordExist, _ := ExistsInFile(".gitignore", ".jorge")
+
+	if !jorgeRecordExist {
+		AppendToFile(".gitignore", ".jorge")
+	}
+
+	return nil
+}
+
 // StoreConfigFile
 // It stores the current active user config file under an jorge environment name
-func StoreConfigFile(path string, envName string) (int64, error) {
+func StoreConfigFile(path string, envName string) (int64, *EncapsulatedError) {
 	envsDir, err := getEnvsDirPath()
 
 	if err != nil {
 		return -1, err
 	}
 
-	activeConfigFileMeta, err := os.Stat(path)
+	activeConfigFileMeta, activeConfigFileMetaErr := os.Stat(path)
 
-	if err != nil {
-		return -1, err
+	if activeConfigFileMetaErr != nil {
+		encErr := EncapsulatedError{
+			OriginalErr: activeConfigFileMetaErr,
+			Message:     ErrorCode.Str(E107),
+			Solution:    SolutionMessage.Str(S003, path),
+			Code:        107,
+		}
+		return -1, &encErr
 	}
 
 	if !activeConfigFileMeta.Mode().IsRegular() {
-		return -2, fmt.Errorf("%s is not a regular file", path)
+		encErr := EncapsulatedError{
+			OriginalErr: ErrorCode.Err(E004),
+			Message:     ErrorCode.Str(E004),
+			Solution:    SolutionMessage.Str(S003, path),
+			Code:        4,
+		}
+		return -2, &encErr
 	} else {
 		log.Debug("Active configuration file " + path + " is a regular file")
 	}
@@ -379,40 +602,82 @@ func StoreConfigFile(path string, envName string) (int64, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			mkdirErr := os.Mkdir(targetEnvDirName, 0700)
 			if mkdirErr != nil {
-				return -3, mkdirErr
+				encErr := EncapsulatedError{
+					OriginalErr: mkdirErr,
+					Message:     ErrorCode.Str(E108),
+					Solution:    SolutionMessage.Str(S103, GetUser()),
+					Code:        108,
+				}
+				return -3, &encErr
 			}
 			log.Debug(fmt.Sprintf("Created env dir %s", targetEnvDirName))
 		} else {
-			return -4, err
+			encError := EncapsulatedError{
+				OriginalErr: err,
+				Message:     ErrorCode.Str(E005),
+				Solution:    SolutionMessage.Str(S103, GetUser()),
+				Code:        5,
+			}
+			return -4, &encError
 		}
 	}
 
 	log.Debug(fmt.Sprintf("Source path is %v", path))
-	sourceFile, err := os.Open(path)
+	sourceFile, sourceFileErr := os.Open(path)
 	log.Debug("Source file opened")
 	defer sourceFile.Close()
+
+	if sourceFileErr != nil {
+		encErr := EncapsulatedError{
+			OriginalErr: sourceFileErr,
+			Message:     ErrorCode.Str(E107),
+			Solution:    SolutionMessage.Str(S103, GetUser()),
+			Code:        107,
+		}
+
+		return -1, &encErr
+	}
 
 	_, fileName := filepath.Split(path)
 
 	destinationPath := filepath.Join(targetEnvDirName, fileName)
-	destination, err := os.Create(destinationPath)
-	log.Debug(fmt.Sprintf("Stored file %s", destinationPath))
+	destination, destinationErr := os.Create(destinationPath)
 
-	if err != nil {
-		return -5, err
+	if destinationErr != nil {
+		encErr := EncapsulatedError{
+			OriginalErr: destinationErr,
+			Message:     ErrorCode.Str(E110),
+			Solution:    SolutionMessage.Str(S103, GetUser()),
+			Code:        110,
+		}
+		return -1, &encErr
 	}
+
+	log.Debug(fmt.Sprintf("Stored file %s", destinationPath))
 	log.Debug("Destination file created")
 	defer destination.Close()
 
-	nBytes, err := io.Copy(destination, sourceFile)
+	nBytes, copyErr := io.Copy(destination, sourceFile)
 	log.Debug(fmt.Sprintf("Wrote %d bytes from %v to %v", nBytes, path, destinationPath))
-	return nBytes, err
+
+	if copyErr != nil {
+		encErr := EncapsulatedError{
+			OriginalErr: copyErr,
+			Message:     ErrorCode.Str(E110),
+			Solution:    SolutionMessage.Str(S103, GetUser()),
+			Code:        110,
+		}
+
+		return -1, &encErr
+	}
+
+	return nBytes, nil
 }
 
 // UseConfigFile
 // It replaces the current active user configuration file with the one that is
 // stored under the jorge environment
-func UseConfigFile(envName string, createEnv bool) (int64, error) {
+func UseConfigFile(envName string, createEnv bool) (int64, *EncapsulatedError) {
 
 	config, err := getInternalConfig()
 
@@ -425,7 +690,13 @@ func UseConfigFile(envName string, createEnv bool) (int64, error) {
 	if createEnv {
 		if existingEnvs, err := getEnvs(); err == nil {
 			if Contains(existingEnvs, envName) {
-				return -1, fmt.Errorf(fmt.Sprintf("Environment %s already exist", envName))
+				encErr := EncapsulatedError{
+					OriginalErr: ErrorCode.Err(E109),
+					Message:     ErrorCode.Str(E109),
+					Solution:    SolutionMessage.Str(S104),
+					Code:        109,
+				}
+				return -1, &encErr
 			} else {
 				if _, err := StoreConfigFile(target, envName); err != nil {
 					return -1, err
@@ -448,14 +719,14 @@ func UseConfigFile(envName string, createEnv bool) (int64, error) {
 		}
 
 		if _, err := setInternalConfig(newConfig); err != nil {
-			return -2, err
+			return -1, err
 		} else {
 			return 1, nil
 		}
 	}
 }
 
-func SelectEnvironment(envName string) error {
+func SelectEnvironment(envName string) *EncapsulatedError {
 	if _, err := setInternalConfig(JorgeConfig{
 		CurrentEnv: envName,
 	}); err != nil {
@@ -468,7 +739,7 @@ func SelectEnvironment(envName string) error {
 
 // ListEnvironments
 // Shows a list with all the available environment for the user
-func ListEnvironments() error {
+func ListEnvironments() *EncapsulatedError {
 	envs, err := getEnvs()
 
 	if err != nil {
@@ -497,82 +768,22 @@ func ListEnvironments() error {
 	return nil
 }
 
-func cleanupInit() {
-	if a := recover(); a != nil {
-		fmt.Println(a)
-		removeJorgeDir()
-		panic(a)
-	}
-}
-
 // Init
 // Initializes a jorge project by creating the .jorge directory, setting the
 // first environment and requesting the config file path for the user
-func Init(configFilePathFlag string) error {
-	jorgeDir, err := createJorgeDir()
-	if err != nil {
+func Init(configFilePathFlag string) *EncapsulatedError {
+	if err := initializeJorgeProject(configFilePathFlag); err != nil {
+		removeJorgeDir()
 		return err
-	}
-
-	defer cleanupInit()
-
-	var configFileName string
-
-	if len(configFilePathFlag) > 0 {
-		configFileName = configFilePathFlag
 	} else {
-		configFileName, err = requestConfigFileFromUser()
+		return nil
 	}
-
-	if err != nil {
-		panic(err)
-	}
-
-	absConfigFileName, err := filepath.Abs(configFileName)
-
-	if err != nil {
-		panic(err)
-	}
-
-	if _, err := os.Stat(configFileName); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			panic(fmt.Errorf("File %s does not exist", configFileName))
-		}
-	}
-
-	var relativePathToConfig string
-	if relativePathToConfig, err = filepath.Rel(filepath.Join(jorgeDir, ".."), absConfigFileName); err != nil {
-		panic(err)
-	}
-
-	freshJorgeConfig := JorgeConfig{
-		CurrentEnv:     "default",
-		ConfigFilePath: relativePathToConfig,
-	}
-
-	if _, err := setInternalConfig(freshJorgeConfig); err != nil {
-		panic(err)
-	}
-
-	_, storeFileErr := StoreConfigFile(freshJorgeConfig.ConfigFilePath, "default")
-
-	if storeFileErr != nil {
-		panic(err)
-	}
-
-	jorgeRecordExist, err := ExistsInFile(".gitignore", ".jorge")
-
-	if !jorgeRecordExist {
-		AppendToFile(".gitignore", ".jorge")
-	}
-
-	return nil
 }
 
 // CommitCurrentEnv
 // It stores the current active user configuration file under the current selected
 // jorge environment (found at the ./jorge/config.yml file)
-func CommitCurrentEnv() error {
+func CommitCurrentEnv() *EncapsulatedError {
 	config, err := getInternalConfig()
 
 	if err != nil {
@@ -597,7 +808,7 @@ func CommitCurrentEnv() error {
 // RestoreEnv
 // It replaces the current active configuration file, with the one that is
 // stored under the current environment (found under the ./.jorge/config.yml)
-func RestoreEnv() error {
+func RestoreEnv() *EncapsulatedError {
 	config, err := getInternalConfig()
 
 	if err != nil {

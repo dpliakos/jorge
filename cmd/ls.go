@@ -25,7 +25,18 @@ var lsCmd = &cobra.Command{
 		}
 
 		if err := jorge.ListEnvironments(); err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
+			if debug && err.OriginalErr != nil {
+				fmt.Fprintf(os.Stderr, "%s\n", err.OriginalErr.Error())
+			}
+
+			fmt.Fprintf(os.Stderr, "%s\n", err.Message)
+			fmt.Fprintf(os.Stderr, "%s\n", err.Solution)
+
+			if err.Code > 0 {
+				os.Exit(err.Code)
+			} else {
+				os.Exit(1)
+			}
 		}
 	},
 }

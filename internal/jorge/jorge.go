@@ -564,6 +564,42 @@ func initializeJorgeProject(configFilePathFlag string) *EncapsulatedError {
 	return nil
 }
 
+func deleteJorgeEnv(env string) *EncapsulatedError {
+	jorgeDir, err := getJorgeDir()
+	if err != nil {
+		fmt.Println("Error")
+		return nil
+	}
+
+	target := filepath.Join(jorgeDir, "envs", env)
+
+	if _, err := os.Stat(target); err != nil {
+		encError := EncapsulatedError{
+			OriginalErr: err,
+			Message:     ErrorCode.Str(E002),
+			Solution:    SolutionMessage.Str(S001, target),
+			Code:        2,
+		}
+
+		return &encError
+	}
+
+	removeErr := os.RemoveAll(target)
+	if removeErr != nil {
+		fmt.Println("could not remove ", target)
+		encError := EncapsulatedError{
+			OriginalErr: removeErr,
+			Message:     ErrorCode.Str(E009),
+			Solution:    SolutionMessage.Str(S001, target),
+			Code:        9,
+		}
+
+		return &encError
+	}
+
+	return nil
+}
+
 // StoreConfigFile
 // It stores the current active user config file under an jorge environment name
 func StoreConfigFile(path string, envName string) (int64, *EncapsulatedError) {
@@ -828,4 +864,51 @@ func RestoreEnv() *EncapsulatedError {
 	} else {
 		return nil
 	}
+}
+
+func RemoveEnv(envName string) *EncapsulatedError {
+	envs, err := getEnvs()
+
+	if err != nil {
+		return err
+	}
+
+	config, err := getInternalConfig()
+	if err != nil {
+		return err
+	}
+
+	if envName == config.CurrentEnv {
+		encErr := EncapsulatedError{
+			OriginalErr: ErrorCode.Err(E112),
+			Message:     ErrorCode.Str(E112),
+			Solution:    SolutionMessage.Str(S106),
+			Code:        112,
+		}
+
+		return &encErr
+	}
+
+	targetEnvFound := false
+	for _, fileName := range envs {
+		if fileName == envName {
+			targetEnvFound = true
+		}
+	}
+
+	if !targetEnvFound {
+		encErr := EncapsulatedError{
+			OriginalErr: ErrorCode.Err(E111),
+			Message:     ErrorCode.Str(E111),
+			Code:        111,
+		}
+
+		return &encErr
+	}
+
+	if err = deleteJorgeEnv(envName); err != nil {
+		return err
+	}
+
+	return nil
 }

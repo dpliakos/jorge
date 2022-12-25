@@ -709,7 +709,16 @@ func UseConfigFile(envName string, createEnv bool) (int64, *EncapsulatedError) {
 		}
 	}
 
-	if _, err := setConfigAsMain(target, envName); err != nil {
+	jorgeDir, encErr := resolveJorgeDir()
+	if encErr != nil {
+		fmt.Println(encErr)
+	} else {
+		fmt.Println("hello: ")
+		fmt.Print(jorgeDir)
+	}
+
+	resolvedTarget := filepath.Join(jorgeDir, target)
+	if _, err := setConfigAsMain(resolvedTarget, envName); err != nil {
 		return -1, err
 	} else {
 		log.Debug(fmt.Sprintf("Used %s as main config file", envName))

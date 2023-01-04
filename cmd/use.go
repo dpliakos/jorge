@@ -29,18 +29,24 @@ var useCmd = &cobra.Command{
 			selectedEnv = "default"
 		}
 
-		bytes, err := jorge.UseConfigFile(selectedEnv, newEnv)
+		bytes, encErr := jorge.UseConfigFile(selectedEnv, newEnv)
 
-		if err != nil {
-			if debug && err.OriginalErr != nil {
-				fmt.Fprintf(os.Stderr, "%s\n", err.OriginalErr.Error())
+		if encErr != nil {
+			if debug && encErr.OriginalErr != nil {
+				fmt.Fprintf(os.Stderr, "%s\n", encErr.OriginalErr.Error())
 			}
 
-			fmt.Fprintf(os.Stderr, "%s\n", err.Message)
-			fmt.Fprintf(os.Stderr, "%s\n", err.Solution)
+			_, err := fmt.Fprintf(os.Stderr, "%s\n", encErr.Message)
+			if err != nil {
+				return
+			}
+			_, err = fmt.Fprintf(os.Stderr, "%s\n", encErr.Solution)
+			if err != nil {
+				return
+			}
 
-			if err.Code > 0 {
-				os.Exit(err.Code)
+			if encErr.Code > 0 {
+				os.Exit(encErr.Code)
 			} else {
 				os.Exit(1)
 			}

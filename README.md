@@ -1,8 +1,10 @@
+<img src="./docs/jorge-logo_221x217.png" alt="lightblue gopher dressed as medieval librarian" align="left">
+
 # Jorge
 
-A tool that helps to manage multiple configuration file versions of an application under development
+The keeper of software lore, aids thee in taming the ever-shifting winds of secrets arrangement
 
-![lightblue gopher dressed as medieval librarian](./docs/logo_375x368.png)
+<br /><br /><br /><br /><br />
 
 ## Description
 

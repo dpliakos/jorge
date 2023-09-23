@@ -2,6 +2,8 @@
 
 A tool that helps to manage multiple configuration file versions of an application under development
 
+![lightblue gopher dressed as medieval librarian](./docs/logo_375x368.png)
+
 ## Description
 
 ### Problem 

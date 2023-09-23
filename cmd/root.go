@@ -11,7 +11,7 @@ var cfgFile string
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:     "jorge",
-	Version: "0.0.1",
+	Version: "0.0.2",
 	Short:   "Manages different versions of a configuration file",
 }
 

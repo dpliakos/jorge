@@ -1,21 +1,16 @@
-FROM golang:1.18.3-alpine
+FROM golang:1.18.3-alpine as build
 
-RUN mkdir -p /go/src/github.com/dpliakos/jorge
-WORKDIR /go/src/github.com/dpliakos/jorge
+WORKDIR /app
+COPY go.mod go.sum /app/
+RUN go mod download
 
-RUN apk add make
+COPY . .
+RUN go build
 
-COPY ./main.go  .
-COPY ./cmd ./cmd
-COPY ./internal ./internal
-COPY ./go.mod .
-COPY ./go.sum .
-COPY ./LICENSE .
-COPY ./Makefile .
+FROM alpine:3.17.5 as final
 
-RUN go get
-RUN make build
-RUN make install 
+USER 1000
+COPY --from=build /app/jorge /jorge
 
-RUN mkdir /root/projectRoot
-WORKDIR /root/projectRoot
+WORKDIR /projectRoot
+ENTRYPOINT ["/jorge"]
